@@ -154,3 +154,4 @@ set(CPACK_COMPONENT_VIRTUAL_DISPLAY_GROUP "Drivers")
 # include specific packaging
 include(${CMAKE_MODULE_PATH}/packaging/windows_nsis.cmake)
 include(${CMAKE_MODULE_PATH}/packaging/windows_wix.cmake)
+set(CPACK_POST_BUILD_SCRIPTS "${CMAKE_MODULE_PATH}/packaging/windows_cpack_post.cmake")

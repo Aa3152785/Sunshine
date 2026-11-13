@@ -51,7 +51,7 @@ configure_file("${_hidmaestro_winrt}" "${HIDMAESTRO_SDK_DIR}/WinRT.Runtime.dll" 
 
 set(DOTNET_EXECUTABLE "" CACHE FILEPATH "Path to the .NET 10 dotnet executable")
 if(NOT DOTNET_EXECUTABLE)
-    find_program(DOTNET_EXECUTABLE dotnet)
+    find_program(DOTNET_EXECUTABLE dotnet HINTS "C:/Program Files/dotnet")
 endif()
 if(NOT DOTNET_EXECUTABLE)
     message(FATAL_ERROR ".NET 10 SDK is required to build the HIDMaestro helper. Set DOTNET_EXECUTABLE.")

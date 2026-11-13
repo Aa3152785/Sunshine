@@ -1,0 +1,31 @@
+# Post-build CPack hook for Windows packaging compatibility and NSIS .exe generation
+if(CPACK_GENERATOR STREQUAL "WIX")
+    foreach(_pkg IN LISTS CPACK_PACKAGE_FILES)
+        if(_pkg MATCHES "\\.msi$")
+            file(COPY_FILE "${_pkg}" "${CPACK_PACKAGE_DIRECTORY}/Sunshine.msi")
+        endif()
+    endforeach()
+elseif(CPACK_GENERATOR STREQUAL "ZIP")
+    foreach(_pkg IN LISTS CPACK_PACKAGE_FILES)
+        if(_pkg MATCHES "\\.zip$")
+            file(COPY_FILE "${_pkg}" "${CPACK_PACKAGE_DIRECTORY}/Sunshine.zip")
+        endif()
+    endforeach()
+    find_program(_MAKENSIS_EXE makensis HINTS "C:/msys64/ucrt64/bin" "/ucrt64/bin")
+    find_program(_CPACK_EXE cpack HINTS "C:/msys64/ucrt64/bin" "/ucrt64/bin")
+    if(_MAKENSIS_EXE AND _CPACK_EXE AND NOT DEFINED ENV{SUNSHINE_SKIP_AUTO_NSIS})
+        set(ENV{SUNSHINE_SKIP_AUTO_NSIS} "1")
+        execute_process(
+            COMMAND "${_CPACK_EXE}" -G NSIS --config "${CPACK_PACKAGE_DIRECTORY}/../CPackConfig.cmake"
+            WORKING_DIRECTORY "${CPACK_PACKAGE_DIRECTORY}/.."
+            RESULT_VARIABLE _nsis_res
+        )
+        file(GLOB _nsis_exes "${CPACK_PACKAGE_DIRECTORY}/*.exe")
+        if(_nsis_exes)
+            file(MAKE_DIRECTORY "${CPACK_PACKAGE_DIRECTORY}/../../artifacts")
+            foreach(_exe IN LISTS _nsis_exes)
+                file(COPY "${_exe}" DESTINATION "${CPACK_PACKAGE_DIRECTORY}/../../artifacts")
+            endforeach()
+        endif()
+    endif()
+endif()
