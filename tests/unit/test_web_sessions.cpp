@@ -1,9 +1,5 @@
 /**
  * @file tests/unit/test_web_sessions.cpp
- * @brief Test browser session expiry, revocation, and cookie parsing.
- */
-/**
- * @file tests/unit/test_web_sessions.cpp
  * @brief Test browser session expiry, persistence, sliding renewal, revocation, and cookie parsing.
  */
 #include "src/web_sessions.h"
