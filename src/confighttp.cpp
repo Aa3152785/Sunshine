@@ -99,6 +99,44 @@ namespace confighttp {
   web_sessions::store browser_sessions;  ///< Process-local authenticated browser sessions.
 
   /**
+   * @brief Build a one-way fingerprint of the active Web UI credentials.
+   * @return Hex-encoded credential hash for binding stored sessions to current credentials.
+   */
+  std::string credential_fingerprint() {
+    return util::hex(crypto::hash(config::sunshine.username + ":" + config::sunshine.password + ":" + config::sunshine.salt)).to_string();
+  }
+
+  /**
+   * @brief Resolve the disk file path used to persist long-lived browser sessions.
+   * @return Path alongside credentials_file, or empty when persistence is disabled.
+   */
+  std::filesystem::path session_store_path() {
+    if (config::sunshine.credentials_file.empty() || config::sunshine.flags[config::flag::FRESH_STATE]) {
+      return {};
+    }
+    const std::filesystem::path creds_path(config::sunshine.credentials_file);
+    if (creds_path.has_parent_path()) {
+      return creds_path.parent_path() / "web_sessions.dat";
+    }
+    return "web_sessions.dat";
+  }
+
+  /**
+   * @brief Format the Set-Cookie header value for an authenticated browser session.
+   * @param token Opaque session token.
+   * @param persistent Whether the cookie should persist across browser restarts.
+   * @return Formatted Set-Cookie header value.
+   */
+  std::string build_session_cookie(const std::string &token, bool persistent) {
+    std::string cookie = "sunshine_session=" + token + "; Path=/; Secure; HttpOnly; SameSite=Strict";
+    if (persistent) {
+      constexpr auto max_age = std::chrono::duration_cast<std::chrono::seconds>(web_sessions::PERSISTENT_SESSION_TTL).count();
+      cookie += "; Max-Age=" + std::to_string(max_age);
+    }
+    return cookie;
+  }
+
+  /**
    * @brief Extract a single session cookie from a request.
    * @param request HTTPS request.
    * @return Cookie token, or empty when missing or ambiguous.
@@ -115,10 +153,10 @@ namespace confighttp {
   /**
    * @brief Validate a browser session against the currently configured credentials.
    * @param request HTTPS request.
-   * @return Whether the request has an active browser session.
+   * @return Validation result including persistence and sliding-renewal state.
    */
-  bool authenticated_session(const req_https_t &request) {
-    return browser_sessions.valid(session_token(request), config::sunshine.username + ":" + config::sunshine.password + ":" + config::sunshine.salt, std::chrono::steady_clock::now());
+  web_sessions::store::validation_result validate_browser_session(const req_https_t &request) {
+    return browser_sessions.check(session_token(request), credential_fingerprint(), web_sessions::clock::now());
   }
 
   // CSRF token configuration
@@ -213,9 +251,10 @@ namespace confighttp {
    * @param response The HTTP response object.
    * @param request The HTTP request object.
    * @param redirect_to_login Redirect unauthenticated page requests to the login form.
+   * @param session_out Optional output for browser session validation metadata.
    * @return True if the user is authenticated, false otherwise.
    */
-  bool authenticate(const resp_https_t &response, const req_https_t &request, bool redirect_to_login) {
+  bool authenticate_impl(const resp_https_t &response, const req_https_t &request, bool redirect_to_login, web_sessions::store::validation_result *session_out = nullptr) {
     auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
 
     if (const auto ip_type = net::from_address(address); ip_type > http::origin_web_ui_allowed) {
@@ -230,7 +269,10 @@ namespace confighttp {
       return false;
     }
 
-    if (authenticated_session(request)) {
+    if (const auto session = validate_browser_session(request); session.ok) {
+      if (session_out) {
+        *session_out = session;
+      }
       return true;
     }
 
@@ -274,6 +316,10 @@ namespace confighttp {
 
     fg.disable();
     return true;
+  }
+
+  bool authenticate(const resp_https_t &response, const req_https_t &request, bool redirect_to_login) {
+    return authenticate_impl(response, request, redirect_to_login);
   }
 
   /**
@@ -354,7 +400,7 @@ namespace confighttp {
    * @return A unique identifier based on username or IP address.
    */
   std::string get_client_id(const req_https_t &request) {
-    if (authenticated_session(request)) {
+    if (validate_browser_session(request).ok) {
       return "session:" + session_token(request);
     }
     // Try to use the authenticated username as client ID
@@ -547,6 +593,7 @@ namespace confighttp {
       const auto input = nlohmann::json::parse(request->content.string());
       const auto username = input.value("username", std::string {});
       const auto password = input.value("password", std::string {});
+      const bool remember = input.value("remember", true);
       const auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
       if (config::sunshine.username.empty() || password.empty() || !boost::iequals(username, config::sunshine.username) || hash != config::sunshine.password) {
         send_unauthorized(response, request);
@@ -559,8 +606,8 @@ namespace confighttp {
       }
       const auto token = util::hex(random_bytes).to_string();
       browser_sessions.remove(session_token(request));
-      browser_sessions.add(token, config::sunshine.username + ":" + config::sunshine.password + ":" + config::sunshine.salt, std::chrono::steady_clock::now());
-      response->write(R"({"status":true})", args_t {{"Content-Type", "application/json"}, {"Cache-Control", "no-store"}, {"Set-Cookie", "sunshine_session=" + token + "; Path=/; Secure; HttpOnly; SameSite=Strict"}});
+      browser_sessions.add(token, credential_fingerprint(), web_sessions::clock::now(), remember);
+      response->write(R"({"status":true})", args_t {{"Content-Type", "application/json"}, {"Cache-Control", "no-store"}, {"Set-Cookie", build_session_cookie(token, remember)}});
     } catch (const nlohmann::json::exception &) {
       bad_request(response, request, "Invalid login request");
     }
@@ -594,7 +641,8 @@ namespace confighttp {
       return;
     }
 
-    if (require_auth && !authenticate(response, request, true)) {
+    web_sessions::store::validation_result session_status;
+    if (require_auth && !authenticate_impl(response, request, true, &session_status)) {
       return;
     }
 
@@ -604,6 +652,9 @@ namespace confighttp {
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "text/html; charset=utf-8");
     headers.emplace("Cache-Control", "no-store");
+    if (session_status.renewed) {
+      headers.emplace("Set-Cookie", build_session_cookie(session_token(request), true));
+    }
 
     // prevent click jacking
     headers.emplace("X-Frame-Options", "DENY");
@@ -1963,6 +2014,8 @@ namespace confighttp {
     const auto port_https = net::map_port(PORT_HTTPS);
     const auto address_family = net::af_from_enum_string(config::sunshine.address_family);
 
+    browser_sessions.set_storage_path(session_store_path());
+
     https_server_t server {config::nvhttp.cert, config::nvhttp.pkey};
 
     // Helper to create page handler lambdas without repeating the signature
@@ -2066,6 +2119,6 @@ namespace confighttp {
     server.stop();
 
     tcp.join();
-    browser_sessions.clear();
+    browser_sessions.clear(false);
   }
 }  // namespace confighttp

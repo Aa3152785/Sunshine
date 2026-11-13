@@ -696,6 +696,7 @@ TEST_F(ConfigHttpTest, BrowserSessionLoginLogout) {
   EXPECT_NE(cookie->second.find("HttpOnly"), std::string::npos);
   EXPECT_NE(cookie->second.find("Secure"), std::string::npos);
   EXPECT_NE(cookie->second.find("SameSite=Strict"), std::string::npos);
+  EXPECT_NE(cookie->second.find("Max-Age=2592000"), std::string::npos);
   headers.emplace("Cookie", cookie->second.substr(0, cookie->second.find(';')));
   headers.emplace("Sec-Fetch-Mode", "cors");
   EXPECT_EQ(client->request("GET", "/auth-test", "", headers)->status_code, "200 OK");
@@ -704,6 +705,20 @@ TEST_F(ConfigHttpTest, BrowserSessionLoginLogout) {
   EXPECT_NE(response->header.find("Set-Cookie")->second.find("Max-Age=0"), std::string::npos);
   headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
   EXPECT_EQ(client->request("GET", "/auth-test", "", headers)->status_code, "401 Unauthorized");
+}
+
+TEST_F(ConfigHttpTest, BrowserSessionNonPersistentAndValidation) {
+  SimpleWeb::CaseInsensitiveMultimap headers {{"Content-Type", "application/json"}};
+  auto response = client->request("POST", "/api/login", R"({"username":"testuser","password":"testpass","remember":false})", headers);
+  ASSERT_EQ(response->status_code, "200 OK");
+  const auto cookie = response->header.find("Set-Cookie");
+  ASSERT_NE(cookie, response->header.end());
+  EXPECT_EQ(cookie->second.find("Max-Age="), std::string::npos);
+  EXPECT_NE(cookie->second.find("HttpOnly"), std::string::npos);
+  EXPECT_NE(cookie->second.find("Secure"), std::string::npos);
+  EXPECT_NE(cookie->second.find("SameSite=Strict"), std::string::npos);
+
+  EXPECT_EQ(client->request("POST", "/api/login", R"({"username":"testuser","password":"testpass","remember":"yes"})", headers)->status_code, "400 Bad Request");
 }
 
 TEST_F(ConfigHttpTest, BrowserLoginRejectsInvalidRequests) {

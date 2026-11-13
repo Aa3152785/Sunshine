@@ -5,6 +5,8 @@ Existing Sunshine usernames and passwords continue to work; first-run setup rema
 
 `POST /api/login` accepts JSON containing `username` and `password`. Successful login issues an opaque 256-bit token in a `sunshine_session` cookie with `Path=/`, `Secure`, `HttpOnly`, and `SameSite=Strict`. Passwords are never persisted in browser storage. Sessions are held only in memory, expire after 12 hours, and are invalidated when credentials change or Sunshine restarts. Storage is limited to 256 sessions.
 
+By default (`remember: true`), login issues a 30-day persistent cookie (`Max-Age=2592000`), saves the hashed session record alongside `credentials_file` (`web_sessions.dat`), and slides the expiration forward on active use so browser or service restarts do not require re-entering credentials. Passing `remember: false` issues a 12-hour in-memory browser-session cookie without `Max-Age`.
+
 `POST /api/logout` revokes the presented session and clears the cookie. Both endpoints require JSON and reject cross-origin browser requests. Existing CSRF protection continues to protect management operations. Protected pages redirect to login; unauthenticated APIs return 401 without `WWW-Authenticate`. Browser requests use sessions; non-browser clients may continue sending explicit Basic authentication headers.
 
 Only known management paths are accepted as post-login return destinations. Protected HTML and authentication responses are not cached, and cookies are redacted in request logs.

@@ -18,6 +18,10 @@
               <label for="password" class="form-label">{{ $t('_common.password') }}</label>
               <input id="password" name="password" type="password" class="form-control" autocomplete="current-password" v-model="password" required :disabled="loading">
             </div>
+            <div class="form-check mb-3">
+              <input id="remember" name="remember" type="checkbox" class="form-check-input" v-model="remember" :disabled="loading">
+              <label for="remember" class="form-check-label">{{ $t('login.remember_me') }}</label>
+            </div>
             <div v-if="error" class="alert alert-danger" role="alert">{{ $t(error) }}</div>
             <button type="submit" class="btn btn-primary w-100" :disabled="loading">{{ $t(loading ? 'login.signing_in' : 'logout.login') }}</button>
           </form>
@@ -36,7 +40,7 @@
   loadAutoTheme();
   const app = createApp({
     components: { NavbarSimple },
-    data: () => ({ username: '', password: '', loading: false, error: '' }),
+    data: () => ({ username: '', password: '', remember: true, loading: false, error: '' }),
     methods: {
       /** @brief Submit credentials without persisting them in browser storage. */
       async login() {
@@ -46,7 +50,7 @@
           const response = await fetch('/api/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: this.username, password: this.password })
+            body: JSON.stringify({ username: this.username, password: this.password, remember: this.remember })
           });
           if (!response.ok) {
             this.error = response.status === 401 ? 'login.invalid_credentials' : 'login.failed';

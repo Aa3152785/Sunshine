@@ -29,7 +29,8 @@
     "signing_in": "正在登录…",
     "invalid_credentials": "账号或密码不正确。",
     "failed": "无法登录，请检查连接后重试。",
-    "logout_failed": "无法退出登录，请重试。"
+    "logout_failed": "无法退出登录，请重试。",
+    "remember_me": "保持登录状态 30 天"
   },
   "_common": {
     "all": "全部",

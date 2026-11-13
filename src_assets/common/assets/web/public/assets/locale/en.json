@@ -29,7 +29,8 @@
     "signing_in": "Signing in…",
     "invalid_credentials": "Incorrect username or password.",
     "failed": "Unable to sign in. Check your connection and try again.",
-    "logout_failed": "Unable to sign out. Please try again."
+    "logout_failed": "Unable to sign out. Please try again.",
+    "remember_me": "Keep me signed in for 30 days"
   },
   "_common": {
     "all": "All",
