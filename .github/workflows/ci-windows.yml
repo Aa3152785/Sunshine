@@ -96,6 +96,8 @@ jobs:
             "mingw-w64-${TOOLCHAIN}-cppwinrt"
             "mingw-w64-${TOOLCHAIN}-curl-winssl"
             "mingw-w64-${TOOLCHAIN}-gcc"
+            "mingw-w64-${TOOLCHAIN}-graphviz"
+            "mingw-w64-${TOOLCHAIN}-libtiff"
             "mingw-w64-${TOOLCHAIN}-miniupnpc"
             "mingw-w64-${TOOLCHAIN}-nlohmann-json"
             "mingw-w64-${TOOLCHAIN}-onevpl"
