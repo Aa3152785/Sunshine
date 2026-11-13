@@ -63,7 +63,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          submodules: recursive
+          submodules: true
+
+      - name: Init nested submodules (excluding build-deps FFmpeg sources)
+        shell: pwsh
+        run: |
+          git -C third-party/libdisplaydevice submodule update --init --recursive
+          git -C third-party/lizardbyte-common submodule update --init --recursive
+          git -C third-party/moonlight-common-c submodule update --init --recursive
+          git -C third-party/tray submodule update --init --recursive
 
       - name: Setup Dependencies Windows
         uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884  # v2.32.0
