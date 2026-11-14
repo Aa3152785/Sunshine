@@ -57,3 +57,4 @@ node_modules/
 *.pyc
 .venv/
 venv/
+!src_assets/windows/drivers/sudovda/*.dll
